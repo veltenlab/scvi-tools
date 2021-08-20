@@ -533,6 +533,77 @@ class Decoder(nn.Module):
         p_v = torch.exp(self.var_decoder(p))
         return p_m, p_v
 
+# DecoderMeth
+class DecoderMeth(nn.Module):
+    """
+    Decodes data from latent space to data space.
+
+    ``n_input`` dimensions to ``n_output``
+    dimensions using a fully-connected neural network of ``n_hidden`` layers.
+    Output is the probablity of the cell being methylated
+
+    Parameters
+    ----------
+    n_input
+        The dimensionality of the input (latent space)
+    n_output
+        The dimensionality of the output (data space)
+    n_layers
+        The number of fully-connected hidden layers
+    n_hidden
+        The number of nodes per hidden layer
+    dropout_rate
+        Dropout rate to apply to each of the hidden layers
+    kwargs
+        Keyword args for :class:`~scvi.module._base.FCLayers`
+    """
+
+    def __init__(
+        self,
+        n_input: int,
+        n_output: int,
+        n_cat_list: Iterable[int] = None,
+        n_layers: int = 1,
+        n_hidden: int = 128,
+        **kwargs,
+    ):
+        super().__init__()
+        self.decoder = FCLayers(
+            n_in=n_input,
+            n_out=n_hidden,
+            n_cat_list=n_cat_list,
+            n_layers=n_layers,
+            n_hidden=n_hidden,
+            dropout_rate=0,
+            **kwargs,
+        )
+
+        self.softplus = nn.Softplus()
+        self.sigmoid = nn.Sigmoid()
+        self.pi_decoder = nn.Linear(n_hidden, n_output)
+
+    def forward(self, x: torch.Tensor):
+        """
+        The forward computation for a single sample.
+
+         #. Decodes the data from the latent space using the decoder network
+         #. Returns tensors for the mixture parameter represeting methylation
+
+        Parameters
+        ----------
+        x
+            tensor with shape ``(n_input,)``
+
+        Returns
+        -------
+        object of type :py:class:`torch.Tensor`
+            With the mixture parameter of the methylation ``(n_output,)``
+
+        """
+        # Parameters for latent distribution
+        p = self.softplus(self.decoder(x))
+        pi = self.sigmoid(self.pi_decoder(p))
+        return pi
 
 class MultiEncoder(nn.Module):
     def __init__(
