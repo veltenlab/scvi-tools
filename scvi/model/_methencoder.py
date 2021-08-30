@@ -51,7 +51,7 @@ class methVAE(nn.Module):
         x = dat['X']
         pyro.module("decoder", self.decoder)
         with pyro.plate("data", x.shape[0]):
-#            mean_nb1, alpha_min, alpha_max, disp_nb1, disp_nb2  = torch.ones(torch.Size((x.shape[0], x.shape[1]))), torch.zeros(torch.Size((x.shape[0], x.shape[1]))), torch.ones(torch.Size((x.shape[0], x.shape[1]))), torch.ones(torch.Size((x.shape[0], x.shape[1]))), torch.ones(torch.Size((x.shape[0], x.shape[1])))
+            mean_nb1, alpha_min, alpha_max, disp_nb1, disp_nb2  = torch.ones(torch.Size((x.shape[0], x.shape[1]))), torch.zeros(torch.Size((x.shape[0], x.shape[1]))), torch.ones(torch.Size((x.shape[0], x.shape[1]))), torch.ones(torch.Size((x.shape[0], x.shape[1]))), torch.ones(torch.Size((x.shape[0], x.shape[1])))
             gauss_mean = torch.zeros(torch.Size((x.shape[0], self.bottleneck_size)))
             gauss_sd = torch.ones(torch.Size((x.shape[0], self.bottleneck_size)))
             bottleneck = pyro.sample("bottleneck", dist.Normal(gauss_mean, gauss_sd).to_event(1))
@@ -65,31 +65,35 @@ class methVAE(nn.Module):
             mean_nb2_sampled = pyro.param("mean_nb2", self.mean_nb2)
             mean_nb1_sampled = torch.exp(mean_nb1_sampled)
             mean_nb2_sampled = torch.exp(mean_nb2_sampled)
-            alpha_sampled = pyro.param("alpha", self.alpha, constraint=constraints.interval(0,1))
+            alpha_sampled = pyro.sample("alpha", dist.Uniform(alpha_min,alpha_max))
+            alpha_sampled = torch.exp(alpha_sampled)/(1+torch.exp(alpha_sampled))
 #            enzyme_activity = pyro.param("enzyme_activity", torch.nn.Parameter(torch.randn(x.shape[0])), constraint=constraints.interval(0,1))
 #            enzyme_activity = enzyme_activity[range(0,x.shape[0])]
 #            print(mean_nb1_sampled)
 #            alpha_sampled = pyro.param("alpha", self.alpha, constraint=constraints.interval(0,1))
 #            print(alpha_sampled)
-            pi_reconstructed = self.decoder(bottleneck)
+#            pi_reconstructed = self.decoder(bottleneck)
 #            print(mean_nb1_sampled)
 #            print(mean_nb2_sampled)
-#            pi_reconstructed = pyro.sample("pi",dist.Bernoulli(pi_reconstructed).to_event(1))>0.5
+            pi = torch.nn.Parameter(torch.randn(x.shape[0]))
+            pi = pi.expand(x.shape[1], x.shape[0]).t()
+            pi = torch.exp(pi)/(1+torch.exp(pi))
+            pi_reconstructed = pyro.param("pi",dist.Bernoulli(pi).to_event(1))>0.5
             disp_nb1 = pyro.param("disp_nb1", self.disp_nb1)
             disp_nb1 = torch.exp(disp_nb1)
-            disp_nb2 = pyro.param("disp_nb2", self.disp_nb2)
-            disp_nb2 = torch.exp(disp_nb2)
-            disp_nb2 = (disp_nb2*alpha_sampled)+self.eps
+            #disp_nb2 = pyro.param("disp_nb2", self.disp_nb2)
+            #disp_nb2 = torch.exp(disp_nb2)
+            #disp_nb2 = (disp_nb1*alpha_sampled)+self.eps
             disp_nb1 = (disp_nb1)/(disp_nb1+mean_nb1_sampled)
-            disp_nb2 = (disp_nb2)/(disp_nb2+mean_nb2_sampled)
+            #disp_nb2 = (disp_nb2)/(disp_nb2+mean_nb2_sampled)
 #            print(disp_nb1)
 #            print(disp_nb2)
 #            enzyme_activity = enzyme_activity.expand(x.shape[1], x.shape[0]).t()
 #            pi_reconstructed = pi_reconstructed*(1-enzyme_activity)
-            pi_reconstructed = pi_reconstructed>0.5
+#            pi_reconstructed = pi_reconstructed>0.5
             dist_res = dist.MaskedMixture(pi_reconstructed,
                           dist.NegativeBinomial(mean_nb1_sampled, disp_nb1),
-                          dist.NegativeBinomial(mean_nb2_sampled, disp_nb2)).to_event(1)
+                          dist.NegativeBinomial(mean_nb2_sampled, (disp_nb1*alpha_sampled)+self.eps)).to_event(1)
             pyro.sample("obs", 
                        dist_res,
                        obs=x)
@@ -98,19 +102,23 @@ class methVAE(nn.Module):
         x = dat['X']
         pyro.module("encoder", self.encoder)
         with pyro.plate("data", x.shape[0]):
-#            mean_nb1, alpha_min, alpha_max, disp_nb1, disp_nb2  = torch.ones(torch.Size((x.shape[0], x.shape[1]))), torch.zeros(torch.Size((x.shape[0], x.shape[1]))), torch.ones(torch.Size((x.shape[0], x.shape[1]))), torch.ones(torch.Size((x.shape[0], x.shape[1]))), torch.ones(torch.Size((x.shape[0], x.shape[1])))
+            mean_nb1, alpha_min, alpha_max, disp_nb1, disp_nb2  = torch.ones(torch.Size((x.shape[0], x.shape[1]))), torch.zeros(torch.Size((x.shape[0], x.shape[1]))), torch.ones(torch.Size((x.shape[0], x.shape[1]))), torch.ones(torch.Size((x.shape[0], x.shape[1]))), torch.ones(torch.Size((x.shape[0], x.shape[1])))
             gauss_mean, gauss_scale, latent = self.encoder(x)
             pyro.param("mean_nb1", self.mean_nb1)
             pyro.param("mean_nb2", self.mean_nb2)
-            pyro.param("alpha", self.alpha, constraint=constraints.interval(0,1))
+            pyro.sample("alpha", dist.Uniform(alpha_min,alpha_max))
 #            pyro.param("enzyme_activity", torch.nn.Parameter(torch.randn(x.shape[0])), constraint=constraints.interval(0,1))
 #            pyro.param("alpha", self.alpha, constraint=constraints.interval(0,1))
             pyro.param("disp_nb1", self.disp_nb1)
-            pyro.param("disp_nb2", self.disp_nb2)
+#            pyro.param("disp_nb2", self.disp_nb2)
 #            pyro.sample("mean_nb", dist.HalfNormal(mean_nb1).to_event(1))
 #            pyro.sample("alpha", dist.Uniform(alpha_min, alpha_max).to_event(1))
 #            pyro.sample("disp_nb1", dist.HalfNormal(disp_nb1).to_event(1))
 #            pyro.sample("disp_nb2", dist.HalfNormal(disp_nb2).to_event(1))
+            pi = torch.nn.Parameter(torch.randn(x.shape[0]))
+            pi = pi.expand(x.shape[1], x.shape[0]).t()
+            pi = torch.exp(pi)/(1+torch.exp(pi))
+            pyro.param("pi",dist.Bernoulli(pi).to_event(1))>0.5
             pyro.sample("bottleneck", dist.Normal(gauss_mean, gauss_scale).to_event(1))
             
     def generate_counts(self, x):
