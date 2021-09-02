@@ -689,8 +689,8 @@ class DecoderMeth(nn.Module):
         self.pi_decoder = nn.Linear(n_hidden, n_output)
         self.mean_nb = nn.Linear(n_hidden, n_output)
         self.alpha = nn.Linear(n_hidden, n_output)
-        self.disp_nb1 = ConstantDispersionLayer(n_output)
-        self.disp_nb2 = ConstantDispersionLayer(n_output)
+        self.disp_nb1 = nn.Parameter(torch.ones(n_output))
+        self.disp_nb2 = nn.Parameter(torch.ones(n_output))
 
     def forward(self, x: torch.Tensor, *cat_list: int):
         """
@@ -719,8 +719,8 @@ class DecoderMeth(nn.Module):
         pi = self.sigmoid(self.pi_decoder(p))
         mean_nb = self.softplus(self.mean_nb(p))
         alpha = self.sigmoid(self.alpha(p))
-        disp_nb1 = self.softplus(self.disp_nb1(mean_nb))
-        disp_nb2 = self.softplus(self.disp_nb2(mean_nb))
+        disp_nb1 = self.disp_nb1
+        disp_nb2 = self.disp_nb2
         return pi, mean_nb, alpha, disp_nb1, disp_nb2
 
 class MultiEncoder(nn.Module):
@@ -1205,8 +1205,8 @@ class ConstantDispersionLayer(nn.Module):
         super().__init__(**kwargs)
         self.theta = nn.Linear(in_features=n_output,
                               out_features=n_output,
-                              bias=False)
+                              bias=True)
 
     def forward(self, x):
         self.theta_exp = torch.clamp(torch.exp(x), 1e-3, 1e4)
-        return self.theta(torch.mean(x, dim=0))
+        return self.theta(x)
