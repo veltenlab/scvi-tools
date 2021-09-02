@@ -6,6 +6,7 @@ from ._scanvae import SCANVAE
 from ._totalvae import TOTALVAE
 from ._vae import LDVAE, VAE
 from ._vaec import VAEC
+from ._methvae import MethVAE
 
 __all__ = [
     "VAE",
@@ -17,4 +18,5 @@ __all__ = [
     "PEAKVAE",
     "VAEC",
     "MRDeconv",
+    "MethVAE"
 ]

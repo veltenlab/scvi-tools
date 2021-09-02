@@ -652,6 +652,10 @@ class DecoderMeth(nn.Module):
         The dimensionality of the output (data space)
     n_layers
         The number of fully-connected hidden layers
+    n_cat_list
+        A list containing the number of categories
+        for each category of interest. Each category will be
+        included using a one-hot encoding
     n_hidden
         The number of nodes per hidden layer
     dropout_rate
@@ -664,8 +668,8 @@ class DecoderMeth(nn.Module):
         self,
         n_input: int,
         n_output: int,
-        n_cat_list: Iterable[int] = None,
         n_layers: int = 1,
+        n_cat_list: Iterable[int] = None,
         n_hidden: int = 128,
         **kwargs,
     ):
@@ -683,12 +687,12 @@ class DecoderMeth(nn.Module):
         self.softplus = nn.Softplus()
         self.sigmoid = nn.Sigmoid()
         self.pi_decoder = nn.Linear(n_hidden, n_output)
-#        self.mean_nb = nn.Linear(n_hidden, n_output)
-#        self.alpha = nn.Linear(n_hidden, n_output)
-#        self.disp_nb1 = nn.Linear(n_hidden, n_output)
-#        self.disp_nb2 = nn.Linear(n_hidden, n_output)
+        self.mean_nb = nn.Linear(n_hidden, n_output)
+        self.alpha = nn.Linear(n_hidden, n_output)
+        self.disp_nb1 = ConstantDispersionLayer(n_output)
+        self.disp_nb2 = ConstantDispersionLayer(n_output)
 
-    def forward(self, x: torch.Tensor):
+    def forward(self, x: torch.Tensor, *cat_list: int):
         """
         The forward computation for a single sample.
 
@@ -699,6 +703,10 @@ class DecoderMeth(nn.Module):
         ----------
         x
             tensor with shape ``(n_input,)``
+        
+        cat_list
+            list of category membership(s) for this sample
+
 
         Returns
         -------
@@ -709,11 +717,11 @@ class DecoderMeth(nn.Module):
         # Parameters for latent distribution
         p = self.softplus(self.decoder(x))
         pi = self.sigmoid(self.pi_decoder(p))
-#        mean_nb = self.softplus(self.mean_nb(p))
-#        alpha = self.sigmoid(self.alpha(p))
-#        disp_nb1 = self.softplus(self.disp_nb1(p))
-#        disp_nb2 = self.softplus(self.disp_nb2(p))
-        return pi#, alpha
+        mean_nb = self.softplus(self.mean_nb(p))
+        alpha = self.sigmoid(self.alpha(p))
+        disp_nb1 = self.softplus(self.disp_nb1(mean_nb))
+        disp_nb2 = self.softplus(self.disp_nb2(mean_nb))
+        return pi, mean_nb, alpha, disp_nb1, disp_nb2
 
 class MultiEncoder(nn.Module):
     def __init__(
@@ -1188,3 +1196,17 @@ class EncoderTOTALVI(nn.Module):
         untran_latent["l"] = log_library_gene
 
         return qz_m, qz_v, ql_m, ql_v, latent, untran_latent
+
+class ConstantDispersionLayer(nn.Module):
+    '''
+        This class allows to infuse a constant dispersion into a network
+    '''
+    def __init__(self, n_output, **kwargs):
+        super().__init__(**kwargs)
+        self.theta = nn.Linear(in_features=n_output,
+                              out_features=n_output,
+                              bias=False)
+
+    def forward(self, x):
+        self.theta_exp = torch.clamp(torch.exp(x), 1e-3, 1e4)
+        return self.theta(torch.mean(x, dim=0))

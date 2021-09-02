@@ -109,7 +109,7 @@ def log_mixture_nb(
     theta_1: torch.Tensor,
     theta_2: torch.Tensor,
     pi_logits: torch.Tensor,
-    eps=1e-8,
+    eps=1e-8
 ):
     """
     Log likelihood (scalar) of a minibatch according to a mixture nb model.
@@ -476,7 +476,7 @@ class NegativeBinomialMixture(Distribution):
         theta1: torch.Tensor,
         mixture_logits: torch.Tensor,
         theta2: Optional[torch.Tensor] = None,
-        validate_args: bool = False,
+        validate_args: bool = False
     ):
 
         (
@@ -489,10 +489,10 @@ class NegativeBinomialMixture(Distribution):
         super().__init__(validate_args=validate_args)
 
         if theta2 is not None:
-            self.theta2 = broadcast_all(mu1, theta2)
+            self.theta2 = theta2
         else:
             self.theta2 = None
-
+            
     @property
     def mean(self):
         pi = self.mixture_probs
